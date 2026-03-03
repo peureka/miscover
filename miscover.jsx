@@ -48,9 +48,7 @@ function Miscover() {
       }
 
       const data = await response.json();
-      const text = data.content
-        ?.map((b) => (b.type === "text" ? b.text : ""))
-        .join("");
+      const text = data.result;
 
       if (text) {
         const sections = text.split(/\n---\n|\n-{3,}\n/);

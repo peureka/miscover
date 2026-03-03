@@ -33,27 +33,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "three non-empty strings required" });
   }
 
-  const trimmed = inputs.map((v) => v.trim().toLowerCase());
+  // max input length — 100 chars per input
+  if (inputs.some((v) => v.trim().length > 100)) {
+    return res.status(400).json({ error: "keep it short." });
+  }
+
+  // preserve original casing for the model, lowercase only for DB
+  const trimmed = inputs.map((v) => v.trim());
+  const lowered = trimmed.map((v) => v.toLowerCase());
 
   try {
-    // check cache — same three inputs get the same decode
-    if (process.env.DATABASE_URL) {
-      const sql = neon(process.env.DATABASE_URL);
-      const cached = await sql`
-        SELECT raw_output FROM decodes
-        WHERE LOWER(input_1) = ${trimmed[0]}
-          AND LOWER(input_2) = ${trimmed[1]}
-          AND LOWER(input_3) = ${trimmed[2]}
-        ORDER BY created_at DESC
-        LIMIT 1
-      `;
+    const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 
-      if (cached.length > 0 && cached[0].raw_output) {
-        return res.status(200).json({
-          content: [{ type: "text", text: cached[0].raw_output }],
-        });
-      }
-    }
+    // 10-second timeout on the Anthropic call
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -73,10 +67,13 @@ export default async function handler(req, res) {
           },
         ],
       }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeout);
+
     if (!response.ok) {
-      return res.status(502).json({ error: "nothing came back" });
+      return res.status(502).json({ error: "nothing came back." });
     }
 
     const data = await response.json();
@@ -84,17 +81,19 @@ export default async function handler(req, res) {
       ?.map((b) => (b.type === "text" ? b.text : ""))
       .join("") || "";
 
-    // log decode to taste graph — fire and forget
-    if (process.env.DATABASE_URL) {
-      const sql = neon(process.env.DATABASE_URL);
+    // log decode to taste graph — fire and forget, store original casing
+    if (sql) {
       sql`INSERT INTO decodes (input_1, input_2, input_3, raw_output) VALUES (${trimmed[0]}, ${trimmed[1]}, ${trimmed[2]}, ${text})`
         .catch((e) => console.error("db log failed:", e));
     }
 
-    return res.status(200).json(data);
+    return res.status(200).json({ result: text });
   } catch (e) {
+    if (e.name === "AbortError") {
+      return res.status(504).json({ error: "took too long. try again." });
+    }
     console.error("decode function error:", e);
-    return res.status(502).json({ error: "nothing came back" });
+    return res.status(502).json({ error: "nothing came back." });
   }
 }
 
