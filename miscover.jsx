@@ -160,7 +160,7 @@ function Miscover() {
           line-height: 1.7;
           color: #ccc;
           text-align: center;
-          margin-bottom: 40px;
+          margin-bottom: 28px;
         }
         
         .world-item {
@@ -178,7 +178,7 @@ function Miscover() {
           line-height: 1.7;
           color: #777;
           text-align: center;
-          margin-top: 40px;
+          margin-top: 28px;
           font-style: normal;
           cursor: pointer;
           transition: color 0.2s ease;
@@ -186,7 +186,7 @@ function Miscover() {
         .brief-text:hover { color: #777; }
         
         .again-btn {
-          margin-top: 48px;
+          margin-top: 32px;
           padding: 8px 32px;
           background: transparent;
           color: #555;
@@ -200,18 +200,18 @@ function Miscover() {
         .again-btn:hover { color: #777; border-color: #555; }
 
         @media (max-width: 420px) {
-          .decode-text { font-size: 15px; margin-bottom: 28px; }
-          .world-item { font-size: 13px; padding: 5px 0; }
-          .brief-text { font-size: 12px; margin-top: 28px; }
-          .separator { margin: 24px auto; }
-          .again-btn { margin-top: 36px; }
+          .decode-text { font-size: 15px; margin-bottom: 20px; }
+          .world-item { font-size: 13px; padding: 4px 0; }
+          .brief-text { font-size: 12px; margin-top: 20px; }
+          .separator { margin: 18px auto; }
+          .again-btn { margin-top: 24px; }
         }
 
         .separator {
           width: 40px;
           height: 1px;
           background: #333;
-          margin: 32px auto;
+          margin: 24px auto;
         }
 
         .copied-toast {
