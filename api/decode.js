@@ -31,12 +31,15 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
+      const err = await response.text();
+      console.error("anthropic api error:", response.status, err);
       return res.status(502).json({ error: "nothing came back" });
     }
 
     const data = await response.json();
     return res.status(200).json(data);
-  } catch {
+  } catch (e) {
+    console.error("decode function error:", e);
     return res.status(502).json({ error: "nothing came back" });
   }
 }
