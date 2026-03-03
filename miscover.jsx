@@ -41,6 +41,12 @@ function Miscover() {
 
       clearTimeout(timeout);
 
+      if (response.status === 429) {
+        setResult({ decode: "slow down. try again later.", world: [], brief: "" });
+        setPhase("result");
+        return;
+      }
+
       const data = await response.json();
       const text = data.content
         ?.map((b) => (b.type === "text" ? b.text : ""))

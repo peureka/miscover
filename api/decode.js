@@ -1,8 +1,30 @@
 import { neon } from "@neondatabase/serverless";
 
+// in-memory rate limit store (resets per cold start, good enough for serverless)
+const rateLimit = new Map();
+const RATE_LIMIT = 20; // max decodes per IP per hour
+const RATE_WINDOW = 60 * 60 * 1000; // 1 hour
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimit.get(ip);
+  if (!entry || now - entry.start > RATE_WINDOW) {
+    rateLimit.set(ip, { start: now, count: 1 });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "method not allowed" });
+  }
+
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: "slow down. try again later." });
   }
 
   const { inputs } = req.body;
@@ -11,7 +33,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "three non-empty strings required" });
   }
 
+  const trimmed = inputs.map((v) => v.trim().toLowerCase());
+
   try {
+    // check cache — same three inputs get the same decode
+    if (process.env.DATABASE_URL) {
+      const sql = neon(process.env.DATABASE_URL);
+      const cached = await sql`
+        SELECT raw_output FROM decodes
+        WHERE LOWER(input_1) = ${trimmed[0]}
+          AND LOWER(input_2) = ${trimmed[1]}
+          AND LOWER(input_3) = ${trimmed[2]}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+
+      if (cached.length > 0 && cached[0].raw_output) {
+        return res.status(200).json({
+          content: [{ type: "text", text: cached[0].raw_output }],
+        });
+      }
+    }
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -26,7 +69,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "user",
-            content: `${inputs[0].trim()}, ${inputs[1].trim()}, ${inputs[2].trim()}`,
+            content: `${trimmed[0]}, ${trimmed[1]}, ${trimmed[2]}`,
           },
         ],
       }),
@@ -44,7 +87,7 @@ export default async function handler(req, res) {
     // log decode to taste graph — fire and forget
     if (process.env.DATABASE_URL) {
       const sql = neon(process.env.DATABASE_URL);
-      sql`INSERT INTO decodes (input_1, input_2, input_3, raw_output) VALUES (${inputs[0].trim()}, ${inputs[1].trim()}, ${inputs[2].trim()}, ${text})`
+      sql`INSERT INTO decodes (input_1, input_2, input_3, raw_output) VALUES (${trimmed[0]}, ${trimmed[1]}, ${trimmed[2]}, ${text})`
         .catch((e) => console.error("db log failed:", e));
     }
 
