@@ -1,3 +1,5 @@
+import { neon } from "@neondatabase/serverless";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "method not allowed" });
@@ -35,6 +37,17 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+    const text = data.content
+      ?.map((b) => (b.type === "text" ? b.text : ""))
+      .join("") || "";
+
+    // log decode to taste graph — fire and forget
+    if (process.env.DATABASE_URL) {
+      const sql = neon(process.env.DATABASE_URL);
+      sql`INSERT INTO decodes (input_1, input_2, input_3, raw_output) VALUES (${inputs[0].trim()}, ${inputs[1].trim()}, ${inputs[2].trim()}, ${text})`
+        .catch((e) => console.error("db log failed:", e));
+    }
+
     return res.status(200).json(data);
   } catch (e) {
     console.error("decode function error:", e);
