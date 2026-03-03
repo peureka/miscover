@@ -77,24 +77,28 @@ function Miscover() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         background: "#111",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         fontFamily: "'Courier Prime', 'Courier New', monospace",
-        padding: "24px",
+        padding: "16px",
         transition: "all 0.6s ease",
+        overflowX: "hidden",
+        width: "100%",
       }}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap');
         
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        
+        html, body { overflow-x: hidden; width: 100%; }
+
         .input-field {
-          width: 280px;
+          width: 100%;
+          max-width: 280px;
           padding: 12px 0;
           border: none;
           border-bottom: 1.5px solid #333;
@@ -142,6 +146,7 @@ function Miscover() {
         .result-container {
           max-width: 520px;
           width: 100%;
+          padding: 0 4px;
           animation: fadeUp 0.8s ease forwards;
         }
         @keyframes fadeUp {
@@ -193,7 +198,15 @@ function Miscover() {
           transition: all 0.2s ease;
         }
         .again-btn:hover { color: #777; border-color: #555; }
-        
+
+        @media (max-width: 420px) {
+          .decode-text { font-size: 15px; margin-bottom: 28px; }
+          .world-item { font-size: 13px; padding: 5px 0; }
+          .brief-text { font-size: 12px; margin-top: 28px; }
+          .separator { margin: 24px auto; }
+          .again-btn { margin-top: 36px; }
+        }
+
         .separator {
           width: 40px;
           height: 1px;
