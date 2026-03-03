@@ -199,7 +199,17 @@ function Miscover() {
         }
         .again-btn:hover { color: #777; border-color: #555; }
 
+        .inputs-line {
+          font-family: 'Courier Prime', 'Courier New', monospace;
+          font-size: 13px;
+          color: #555;
+          text-align: center;
+          margin-bottom: 20px;
+          letter-spacing: 0.03em;
+        }
+
         @media (max-width: 420px) {
+          .inputs-line { font-size: 12px; margin-bottom: 16px; }
           .decode-text { font-size: 15px; margin-bottom: 20px; }
           .world-item { font-size: 13px; padding: 4px 0; }
           .brief-text { font-size: 12px; margin-top: 20px; }
@@ -281,6 +291,7 @@ function Miscover() {
 
       {phase === "result" && result && (
         <div className="result-container" ref={resultRef}>
+          <p className="inputs-line">{inputs.map((v) => v.trim().toLowerCase()).join(" / ")}</p>
           <p className="decode-text">{result.decode}</p>
 
           {result.world.length > 0 && (
