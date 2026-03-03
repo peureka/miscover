@@ -319,7 +319,6 @@ function Miscover() {
 
       {phase === "result" && result && (
         <div className="result-container" ref={resultRef}>
-          <p className="inputs-line">{inputs.map((v) => v.trim().toLowerCase()).join(" / ")}</p>
           <p className="decode-text">{result.decode}</p>
 
           {result.world.length > 0 && (
