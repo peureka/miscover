@@ -28,12 +28,18 @@ function Miscover() {
     setLoading(true);
     setResult(null);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     try {
       const response = await fetch("/api/decode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inputs: inputs.map((v) => v.trim()) }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeout);
 
       const data = await response.json();
       const text = data.content
@@ -51,10 +57,16 @@ function Miscover() {
           brief: (sections[2] || "").trim(),
         });
         setPhase("result");
+      } else {
+        setResult({ decode: "nothing came back. try again.", world: [], brief: "" });
+        setPhase("result");
       }
     } catch (err) {
-      console.error(err);
-      setResult({ decode: "Something broke. Try again.", world: [], brief: "" });
+      clearTimeout(timeout);
+      const msg = err.name === "AbortError"
+        ? "took too long. try again."
+        : "nothing came back. try again.";
+      setResult({ decode: msg, world: [], brief: "" });
       setPhase("result");
     } finally {
       setLoading(false);
@@ -208,7 +220,17 @@ function Miscover() {
           letter-spacing: 0.03em;
         }
 
+        .watermark {
+          font-family: 'Courier Prime', 'Courier New', monospace;
+          font-size: 11px;
+          color: #333;
+          text-align: center;
+          margin-top: 32px;
+          letter-spacing: 0.08em;
+        }
+
         @media (max-width: 420px) {
+          .watermark { margin-top: 24px; }
           .inputs-line { font-size: 12px; margin-bottom: 16px; }
           .decode-text { font-size: 15px; margin-bottom: 20px; }
           .world-item { font-size: 13px; padding: 4px 0; }
@@ -311,6 +333,8 @@ function Miscover() {
               </p>
             </>
           )}
+
+          <p className="watermark">miscover.com</p>
 
           <div style={{ textAlign: "center" }}>
             <button className="again-btn" onClick={handleReset}>
