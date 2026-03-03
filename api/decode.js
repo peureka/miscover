@@ -31,8 +31,7 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      return res.status(502).json({ error: "nothing came back", _d: body.slice(0, 300) });
+      return res.status(502).json({ error: "nothing came back" });
     }
 
     const data = await response.json();
