@@ -31,7 +31,9 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      return res.status(502).json({ error: "nothing came back" });
+      const err = await response.text().catch(() => "");
+      console.error("anthropic:", response.status, err);
+      return res.status(502).json({ error: "nothing came back", _status: response.status });
     }
 
     const data = await response.json();
