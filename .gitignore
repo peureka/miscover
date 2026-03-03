@@ -1,0 +1,4 @@
+.memnant/
+.claude/
+node_modules/
+.env
