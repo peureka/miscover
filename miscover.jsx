@@ -245,6 +245,21 @@ function Miscover() {
     });
   };
 
+  const handleDelete = async (decodeId, e) => {
+    e.stopPropagation();
+    setSavedDecodes((prev) => prev.filter((d) => d.id !== decodeId));
+    fetch("/api/profile/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decodeId }),
+    }).catch(() => {
+      fetch("/api/profile")
+        .then((r) => r.json())
+        .then((data) => setSavedDecodes(data.decodes || []))
+        .catch(() => {});
+    });
+  };
+
   const handleSave = async () => {
     if (!saveEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saveEmail.trim())) {
       setSavePhase("error");
@@ -521,6 +536,27 @@ function Miscover() {
         }
         .past-decode:hover { color: #8a847b; }
 
+        .past-decode-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+        }
+
+        .delete-btn {
+          font-family: 'Spectral', Georgia, serif;
+          font-size: 16px;
+          font-weight: 300;
+          color: #2a2725;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          line-height: 1;
+          transition: color 0.2s ease;
+        }
+        .delete-btn:hover { color: #8a847b; }
+
         @media (max-width: 420px) {
           .watermark { margin-top: 24px; }
           .inputs-line { font-size: 13px; margin-bottom: 16px; }
@@ -722,9 +758,12 @@ function Miscover() {
                       <>
                         <div className="separator" />
                         {past.map((d) => (
-                          <p key={d.id} className="past-decode" onClick={() => handleActivate(d.id)}>
-                            {d.input_1.toLowerCase()} / {d.input_2.toLowerCase()} / {d.input_3.toLowerCase()}
-                          </p>
+                          <div key={d.id} className="past-decode-row">
+                            <p className="past-decode" onClick={() => handleActivate(d.id)}>
+                              {d.input_1.toLowerCase()} / {d.input_2.toLowerCase()} / {d.input_3.toLowerCase()}
+                            </p>
+                            <button className="delete-btn" onClick={(e) => handleDelete(d.id, e)}>×</button>
+                          </div>
                         ))}
                       </>
                     )}
