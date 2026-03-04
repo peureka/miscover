@@ -43,7 +43,7 @@ function Miscover() {
       clearTimeout(timeout);
 
       if (response.status === 429) {
-        setResult({ decode: "slow down. try again later.", world: [], brief: "" });
+        setResult({ decode: "slow down. try again later.", world: [], brief: "", error: true });
         setPhase("result");
         return;
       }
@@ -63,7 +63,7 @@ function Miscover() {
         });
         setPhase("result");
       } else {
-        setResult({ decode: "nothing came back. try again.", world: [], brief: "" });
+        setResult({ decode: "nothing came back. try again.", world: [], brief: "", error: true });
         setPhase("result");
       }
     } catch (err) {
@@ -71,7 +71,7 @@ function Miscover() {
       const msg = err.name === "AbortError"
         ? "took too long. try again."
         : "nothing came back. try again.";
-      setResult({ decode: msg, world: [], brief: "" });
+      setResult({ decode: msg, world: [], brief: "", error: true });
       setPhase("result");
     } finally {
       setLoading(false);
@@ -103,7 +103,7 @@ function Miscover() {
       sections.push('', '## the brief', result.brief);
     }
 
-    if (result.world.length > 0) {
+    if (result.world?.length > 0) {
       sections.push('', '## reference palette');
       result.world.forEach(item => sections.push(`- ${item}`));
     }
@@ -419,14 +419,16 @@ function Miscover() {
             </>
           )}
 
-          <div style={{ textAlign: "center" }}>
-            <button
-              className={`copy-prompt-btn${promptCopied ? ' copied' : ''}`}
-              onClick={copyPrompt}
-            >
-              {promptCopied ? 'copied' : 'copy as prompt'}
-            </button>
-          </div>
+          {!result.error && (
+            <div style={{ textAlign: "center" }}>
+              <button
+                className={`copy-prompt-btn${promptCopied ? ' copied' : ''}`}
+                onClick={copyPrompt}
+              >
+                {promptCopied ? 'copied' : 'copy as prompt'}
+              </button>
+            </div>
+          )}
 
           <div style={{ textAlign: "center" }}>
             <button className="again-btn" onClick={handleReset}>
