@@ -9,8 +9,35 @@ function Miscover() {
   const resultRef = useRef(null);
   const [promptCopied, setPromptCopied] = useState(false);
 
+  // Seam 2: auth + profile state
+  const [user, setUser] = useState(null);
+  const [savedDecodes, setSavedDecodes] = useState([]);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  // Seam 2: save flow state
+  const [savePhase, setSavePhase] = useState("idle");
+  const [saveEmail, setSaveEmail] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const emailRef = useRef(null);
+
+  // Check session on mount
   useEffect(() => {
-    if (inputRefs[0].current) inputRefs[0].current.focus();
+    fetch("/api/profile")
+      .then((r) => {
+        if (r.ok) return r.json();
+        throw new Error("not authenticated");
+      })
+      .then((data) => {
+        setUser({ authenticated: true });
+        setSavedDecodes(data.decodes || []);
+        setPhase("profile");
+      })
+      .catch(() => {
+        setUser(null);
+        setPhase("input");
+        setTimeout(() => inputRefs[0].current?.focus(), 100);
+      })
+      .finally(() => setProfileLoading(false));
   }, []);
 
   const handleKeyDown = (idx, e) => {
@@ -53,15 +80,37 @@ function Miscover() {
 
       if (text) {
         const sections = text.split(/\n---\n|\n-{3,}\n/);
-        setResult({
+        const parsedResult = {
           decode: (sections[0] || "").trim(),
           world: (sections[1] || "")
             .trim()
             .split("\n")
             .filter((l) => l.trim()),
           brief: (sections[2] || "").trim(),
-        });
+        };
+        setResult(parsedResult);
         setPhase("result");
+
+        // auto-save if authenticated
+        if (user) {
+          fetch("/api/profile/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              inputs: inputs.map((v) => v.trim()),
+              decode: parsedResult.decode,
+              world: parsedResult.world,
+              brief: parsedResult.brief,
+            }),
+          })
+            .then((r) => (r.ok ? fetch("/api/profile") : Promise.reject()))
+            .then((r) => r.json())
+            .then((data) => {
+              setSavedDecodes(data.decodes || []);
+              setPhase("profile");
+            })
+            .catch(() => {});
+        }
       } else {
         setResult({ decode: "nothing came back. try again.", world: [], brief: "", error: true });
         setPhase("result");
@@ -83,6 +132,20 @@ function Miscover() {
     setResult(null);
     setPhase("input");
     setPromptCopied(false);
+    setSavePhase("idle");
+    setSaveEmail("");
+    setSaveError("");
+    setTimeout(() => inputRefs[0].current?.focus(), 100);
+  };
+
+  const handleNewDecode = () => {
+    setInputs(["", "", ""]);
+    setResult(null);
+    setPhase("input");
+    setPromptCopied(false);
+    setSavePhase("idle");
+    setSaveEmail("");
+    setSaveError("");
     setTimeout(() => inputRefs[0].current?.focus(), 100);
   };
 
@@ -119,6 +182,28 @@ function Miscover() {
     return sections.join('\n');
   };
 
+  const formatSavedAsPrompt = (decode) => {
+    if (!decode) return '';
+    const inputLine = [decode.input_1, decode.input_2, decode.input_3].map(v => v.toLowerCase()).join(' / ');
+    const sections = [`# taste profile — ${inputLine}`];
+    sections.push('', '## the thread', decode.decode_text);
+    if (decode.brief_text) {
+      sections.push('', '## the brief', decode.brief_text);
+    }
+    if (decode.world_items?.length > 0) {
+      sections.push('', '## reference palette');
+      decode.world_items.forEach(item => sections.push(`- ${item}`));
+    }
+    sections.push(
+      '',
+      '## how to use this',
+      'apply this taste profile to all creative output. match the sensibility above. prioritize specificity over breadth, restraint over decoration, precision over polish. when in doubt, choose the option that rewards close attention without demanding it.',
+      '',
+      '— miscover.com'
+    );
+    return sections.join('\n');
+  };
+
   const copyPrompt = () => {
     if (promptCopied) return;
     const prompt = formatAsPrompt();
@@ -132,6 +217,75 @@ function Miscover() {
         body: JSON.stringify({ inputs: inputs.map((v) => v.trim()) }),
       }).catch(() => {});
     }).catch(() => {});
+  };
+
+  const copyActivePrompt = () => {
+    const active = savedDecodes.find((d) => d.is_active);
+    if (!active) return;
+    const prompt = formatSavedAsPrompt(active);
+    navigator.clipboard.writeText(prompt).then(() => {
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 1500);
+    }).catch(() => {});
+  };
+
+  const handleActivate = async (decodeId) => {
+    setSavedDecodes((prev) =>
+      prev.map((d) => ({ ...d, is_active: d.id === decodeId }))
+    );
+    fetch("/api/profile/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decodeId }),
+    }).catch(() => {
+      fetch("/api/profile")
+        .then((r) => r.json())
+        .then((data) => setSavedDecodes(data.decodes || []))
+        .catch(() => {});
+    });
+  };
+
+  const handleSave = async () => {
+    if (!saveEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saveEmail.trim())) {
+      setSavePhase("error");
+      setSaveError("enter an email.");
+      return;
+    }
+
+    setSavePhase("sending");
+
+    try {
+      const response = await fetch("/api/auth/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: saveEmail.trim(),
+          decode: {
+            inputs: inputs.map((v) => v.trim()),
+            decode: result.decode,
+            world: result.world,
+            brief: result.brief,
+          },
+        }),
+      });
+
+      if (response.ok) {
+        setSavePhase("sent");
+      } else {
+        setSavePhase("error");
+        setSaveError("something broke. try again.");
+      }
+    } catch {
+      setSavePhase("error");
+      setSaveError("something broke. try again.");
+    }
+  };
+
+  const handleSaveKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave();
+    }
   };
 
   const handleWorldClick = (item) => {
@@ -318,6 +472,55 @@ function Miscover() {
         .copy-prompt-btn:hover { color: #8a847b; }
         .copy-prompt-btn.copied { color: #8a847b; }
 
+        .save-btn {
+          font-family: 'Spectral', Georgia, serif;
+          font-size: 13px;
+          font-weight: 300;
+          color: #4a4540;
+          text-align: center;
+          margin-top: 8px;
+          letter-spacing: 0.08em;
+          cursor: pointer;
+          transition: color 0.2s ease;
+          background: none;
+          border: none;
+          padding: 0;
+        }
+        .save-btn:hover { color: #8a847b; }
+
+        .save-status {
+          font-family: 'Spectral', Georgia, serif;
+          font-size: 13px;
+          font-weight: 300;
+          color: #4a4540;
+          text-align: center;
+          margin-top: 8px;
+          letter-spacing: 0.08em;
+        }
+
+        .save-error { cursor: pointer; }
+        .save-error:hover { color: #8a847b; }
+
+        .profile-container {
+          max-width: 520px;
+          width: 100%;
+          padding: 0 4px;
+          animation: fadeUp 0.8s ease forwards;
+        }
+
+        .past-decode {
+          font-family: 'Spectral', Georgia, serif;
+          font-size: 14px;
+          font-weight: 300;
+          color: #4a4540;
+          text-align: center;
+          padding: 8px 0;
+          letter-spacing: 0.03em;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+        .past-decode:hover { color: #8a847b; }
+
         @media (max-width: 420px) {
           .watermark { margin-top: 24px; }
           .inputs-line { font-size: 13px; margin-bottom: 16px; }
@@ -327,6 +530,9 @@ function Miscover() {
           .separator { margin: 18px auto; }
           .again-btn { margin-top: 24px; }
           .copy-prompt-btn { margin-top: 12px; font-size: 12px; }
+          .save-btn { font-size: 12px; }
+          .save-status { font-size: 12px; }
+          .past-decode { font-size: 13px; padding: 6px 0; }
         }
 
         .separator {
@@ -350,51 +556,9 @@ function Miscover() {
         }
       `}</style>
 
-      {phase === "input" && !loading && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          {[0, 1, 2].map((i) => (
-            <input
-              key={i}
-              ref={inputRefs[i]}
-              className="input-field"
-              type="text"
-              placeholder={i === 0 ? "first thing" : i === 1 ? "second thing" : "third thing"}
-              value={inputs[i]}
-              onChange={(e) => {
-                const next = [...inputs];
-                next[i] = e.target.value;
-                setInputs(next);
-              }}
-              onKeyDown={(e) => handleKeyDown(i, e)}
-            />
-          ))}
-          <button
-            className="go-btn"
-            disabled={!inputs.every((v) => v.trim())}
-            onClick={handleSubmit}
-          >
-            miscover
-          </button>
-        </div>
-      )}
-
-      {loading && (
+      {profileLoading && (
         <div style={{ textAlign: "center" }}>
-          <span
-            style={{
-              fontFamily: "'Spectral', Georgia, serif",
-              fontSize: "18px",
-              color: "#8a847b",
-              letterSpacing: "0.2em",
-            }}
-          >
+          <span style={{ fontFamily: "'Spectral', Georgia, serif", fontSize: "18px", color: "#8a847b", letterSpacing: "0.2em" }}>
             <span className="loading-dot" style={{ animationDelay: "0s" }}>.</span>
             <span className="loading-dot" style={{ animationDelay: "0.2s" }}>.</span>
             <span className="loading-dot" style={{ animationDelay: "0.4s" }}>.</span>
@@ -402,45 +566,181 @@ function Miscover() {
         </div>
       )}
 
-      {phase === "result" && result && (
-        <div className="result-container" ref={resultRef}>
-          <p className="decode-text">{result.decode}</p>
-
-          {result.world.length > 0 && (
-            <>
-              <div className="separator" />
-              {result.world.map((item, i) => (
-                <p key={i} className="world-item" onClick={() => handleWorldClick(item)}>{item}</p>
+      {!profileLoading && (
+        <>
+          {phase === "input" && !loading && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "16px",
+              }}
+            >
+              {[0, 1, 2].map((i) => (
+                <input
+                  key={i}
+                  ref={inputRefs[i]}
+                  className="input-field"
+                  type="text"
+                  placeholder={i === 0 ? "first thing" : i === 1 ? "second thing" : "third thing"}
+                  value={inputs[i]}
+                  onChange={(e) => {
+                    const next = [...inputs];
+                    next[i] = e.target.value;
+                    setInputs(next);
+                  }}
+                  onKeyDown={(e) => handleKeyDown(i, e)}
+                />
               ))}
-            </>
-          )}
-
-          {result.brief && (
-            <>
-              <div className="separator" />
-              <p className="brief-text" onClick={copyBrief} title="Click to copy">
-                {result.brief}
-              </p>
-            </>
-          )}
-
-          {!result.error && (
-            <div style={{ textAlign: "center" }}>
               <button
-                className={`copy-prompt-btn${promptCopied ? ' copied' : ''}`}
-                onClick={copyPrompt}
+                className="go-btn"
+                disabled={!inputs.every((v) => v.trim())}
+                onClick={handleSubmit}
               >
-                {promptCopied ? 'copied' : 'copy as prompt'}
+                miscover
               </button>
             </div>
           )}
 
-          <div style={{ textAlign: "center" }}>
-            <button className="again-btn" onClick={handleReset}>
-              miscover
-            </button>
-          </div>
-        </div>
+          {loading && (
+            <div style={{ textAlign: "center" }}>
+              <span
+                style={{
+                  fontFamily: "'Spectral', Georgia, serif",
+                  fontSize: "18px",
+                  color: "#8a847b",
+                  letterSpacing: "0.2em",
+                }}
+              >
+                <span className="loading-dot" style={{ animationDelay: "0s" }}>.</span>
+                <span className="loading-dot" style={{ animationDelay: "0.2s" }}>.</span>
+                <span className="loading-dot" style={{ animationDelay: "0.4s" }}>.</span>
+              </span>
+            </div>
+          )}
+
+          {phase === "result" && result && (
+            <div className="result-container" ref={resultRef}>
+              <p className="decode-text">{result.decode}</p>
+
+              {result.world?.length > 0 && (
+                <>
+                  <div className="separator" />
+                  {result.world.map((item, i) => (
+                    <p key={i} className="world-item" onClick={() => handleWorldClick(item)}>{item}</p>
+                  ))}
+                </>
+              )}
+
+              {result.brief && (
+                <>
+                  <div className="separator" />
+                  <p className="brief-text" onClick={copyBrief} title="Click to copy">
+                    {result.brief}
+                  </p>
+                </>
+              )}
+
+              {!result.error && (
+                <div style={{ textAlign: "center" }}>
+                  <button
+                    className={`copy-prompt-btn${promptCopied ? ' copied' : ''}`}
+                    onClick={copyPrompt}
+                  >
+                    {promptCopied ? 'copied' : 'copy as prompt'}
+                  </button>
+                </div>
+              )}
+
+              {!result.error && !user && (
+                <div style={{ textAlign: "center" }}>
+                  {savePhase === "idle" && (
+                    <button className="save-btn" onClick={() => { setSavePhase("email"); setTimeout(() => emailRef.current?.focus(), 100); }}>
+                      save this
+                    </button>
+                  )}
+                  {savePhase === "email" && (
+                    <input
+                      ref={emailRef}
+                      className="input-field"
+                      type="email"
+                      placeholder="your email"
+                      value={saveEmail}
+                      onChange={(e) => setSaveEmail(e.target.value)}
+                      onKeyDown={handleSaveKeyDown}
+                      style={{ marginTop: "16px", maxWidth: "280px" }}
+                    />
+                  )}
+                  {savePhase === "sending" && (
+                    <p className="save-status">sending...</p>
+                  )}
+                  {savePhase === "sent" && (
+                    <p className="save-status">check your email.</p>
+                  )}
+                  {savePhase === "error" && (
+                    <p className="save-status save-error" onClick={() => { setSavePhase("email"); setTimeout(() => emailRef.current?.focus(), 100); }}>
+                      {saveError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div style={{ textAlign: "center" }}>
+                <button className="again-btn" onClick={handleReset}>
+                  miscover
+                </button>
+              </div>
+            </div>
+          )}
+
+          {phase === "profile" && (
+            <div className="profile-container">
+              {(() => {
+                const active = savedDecodes.find((d) => d.is_active);
+                const past = savedDecodes.filter((d) => !d.is_active);
+                return (
+                  <>
+                    {active && (
+                      <>
+                        <p className="inputs-line">
+                          {active.input_1.toLowerCase()} / {active.input_2.toLowerCase()} / {active.input_3.toLowerCase()}
+                        </p>
+                        <p className="decode-text">{active.decode_text}</p>
+                        <div style={{ textAlign: "center" }}>
+                          <button
+                            className={`copy-prompt-btn${promptCopied ? ' copied' : ''}`}
+                            onClick={copyActivePrompt}
+                          >
+                            {promptCopied ? 'copied' : 'copy as prompt'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {past.length > 0 && (
+                      <>
+                        <div className="separator" />
+                        {past.map((d) => (
+                          <p key={d.id} className="past-decode" onClick={() => handleActivate(d.id)}>
+                            {d.input_1.toLowerCase()} / {d.input_2.toLowerCase()} / {d.input_3.toLowerCase()}
+                          </p>
+                        ))}
+                      </>
+                    )}
+
+                    <div className="separator" />
+                    <div style={{ textAlign: "center" }}>
+                      <button className="again-btn" onClick={handleNewDecode}>
+                        new decode
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
