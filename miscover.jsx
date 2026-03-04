@@ -90,6 +90,16 @@ function Miscover() {
     }
   };
 
+  const handleWorldClick = (item) => {
+    const query = item.includes(" — ") ? item.split(" — ").slice(1).join(" — ") : item;
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, "_blank");
+    fetch("/api/click", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item, inputs: inputs.map((v) => v.trim()) }),
+    }).catch(() => {});
+  };
+
   return (
     <div
       style={{
@@ -192,7 +202,10 @@ function Miscover() {
           text-align: center;
           padding: 6px 0;
           letter-spacing: 0.03em;
+          cursor: pointer;
+          transition: color 0.2s ease;
         }
+        .world-item:hover { color: #d4cfc8; }
 
         .brief-text {
           font-family: 'Spectral', Georgia, serif;
@@ -335,7 +348,7 @@ function Miscover() {
             <>
               <div className="separator" />
               {result.world.map((item, i) => (
-                <p key={i} className="world-item">{item}</p>
+                <p key={i} className="world-item" onClick={() => handleWorldClick(item)}>{item}</p>
               ))}
             </>
           )}
