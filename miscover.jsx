@@ -305,7 +305,7 @@ function Miscover() {
             disabled={!inputs.every((v) => v.trim())}
             onClick={handleSubmit}
           >
-            decode
+            miscover
           </button>
         </div>
       )}
@@ -349,11 +349,9 @@ function Miscover() {
             </>
           )}
 
-          <p className="watermark">miscover.com</p>
-
           <div style={{ textAlign: "center" }}>
             <button className="again-btn" onClick={handleReset}>
-              again
+              miscover
             </button>
           </div>
         </div>
