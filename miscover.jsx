@@ -7,6 +7,7 @@ function Miscover() {
   const [phase, setPhase] = useState("input");
   const inputRefs = [useRef(null), useRef(null), useRef(null)];
   const resultRef = useRef(null);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   useEffect(() => {
     if (inputRefs[0].current) inputRefs[0].current.focus();
@@ -81,6 +82,7 @@ function Miscover() {
     setInputs(["", "", ""]);
     setResult(null);
     setPhase("input");
+    setPromptCopied(false);
     setTimeout(() => inputRefs[0].current?.focus(), 100);
   };
 
@@ -88,6 +90,43 @@ function Miscover() {
     if (result?.brief) {
       navigator.clipboard.writeText(result.brief);
     }
+  };
+
+  const formatAsPrompt = () => {
+    if (!result) return '';
+    const inputLine = inputs.map(v => v.trim().toLowerCase()).join(' / ');
+    const sections = [`# taste profile — ${inputLine}`];
+
+    sections.push('', '## the thread', result.decode);
+
+    if (result.brief) {
+      sections.push('', '## the brief', result.brief);
+    }
+
+    if (result.world.length > 0) {
+      sections.push('', '## reference palette');
+      result.world.forEach(item => sections.push(`- ${item}`));
+    }
+
+    sections.push(
+      '',
+      '## how to use this',
+      'apply this taste profile to all creative output. match the sensibility above. prioritize specificity over breadth, restraint over decoration, precision over polish. when in doubt, choose the option that rewards close attention without demanding it.',
+      '',
+      '— miscover.com'
+    );
+
+    return sections.join('\n');
+  };
+
+  const copyPrompt = () => {
+    if (promptCopied) return;
+    const prompt = formatAsPrompt();
+    if (!prompt) return;
+    navigator.clipboard.writeText(prompt).then(() => {
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 1500);
+    }).catch(() => {});
   };
 
   const handleWorldClick = (item) => {
@@ -257,6 +296,23 @@ function Miscover() {
           letter-spacing: 0.08em;
         }
 
+        .copy-prompt-btn {
+          font-family: 'Spectral', Georgia, serif;
+          font-size: 13px;
+          font-weight: 300;
+          color: #4a4540;
+          text-align: center;
+          margin-top: 16px;
+          letter-spacing: 0.08em;
+          cursor: pointer;
+          transition: color 0.2s ease;
+          background: none;
+          border: none;
+          padding: 0;
+        }
+        .copy-prompt-btn:hover { color: #8a847b; }
+        .copy-prompt-btn.copied { color: #8a847b; }
+
         @media (max-width: 420px) {
           .watermark { margin-top: 24px; }
           .inputs-line { font-size: 13px; margin-bottom: 16px; }
@@ -265,6 +321,7 @@ function Miscover() {
           .brief-text { font-size: 14px; margin-top: 20px; }
           .separator { margin: 18px auto; }
           .again-btn { margin-top: 24px; }
+          .copy-prompt-btn { margin-top: 12px; font-size: 12px; }
         }
 
         .separator {
@@ -361,6 +418,15 @@ function Miscover() {
               </p>
             </>
           )}
+
+          <div style={{ textAlign: "center" }}>
+            <button
+              className={`copy-prompt-btn${promptCopied ? ' copied' : ''}`}
+              onClick={copyPrompt}
+            >
+              {promptCopied ? 'copied' : 'copy as prompt'}
+            </button>
+          </div>
 
           <div style={{ textAlign: "center" }}>
             <button className="again-btn" onClick={handleReset}>
