@@ -126,6 +126,11 @@ function Miscover() {
     navigator.clipboard.writeText(prompt).then(() => {
       setPromptCopied(true);
       setTimeout(() => setPromptCopied(false), 1500);
+      fetch("/api/prompt-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs: inputs.map((v) => v.trim()) }),
+      }).catch(() => {});
     }).catch(() => {});
   };
 
