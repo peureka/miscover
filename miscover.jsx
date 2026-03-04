@@ -107,7 +107,6 @@ function Miscover() {
             .then((r) => r.json())
             .then((data) => {
               setSavedDecodes(data.decodes || []);
-              setPhase("profile");
             })
             .catch(() => {});
         }
